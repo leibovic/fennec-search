@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -21,18 +22,19 @@ import android.widget.ProgressBar;
 import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
+import org.mozilla.search.providers.SearchEngine;
 
 public class PostSearchFragment extends Fragment {
 
-    private static final String LOGTAG = "PostSearchFragment";
+    private static final String LOG_TAG = "PostSearchFragment";
 
     private ProgressBar progressBar;
     private WebView webview;
 
-    private static final String HIDE_BANNER_SCRIPT = "javascript:(function(){var tag=document.createElement('style');" +
-            "tag.type='text/css';document.getElementsByTagName('head')[0].appendChild(tag);tag.innerText='#nav,#header{display:none}'})();";
+    private SearchEngine searchEngine;
 
     public PostSearchFragment() {
+
     }
 
     @Override
@@ -60,21 +62,13 @@ public class PostSearchFragment extends Fragment {
         progressBar = null;
     }
 
-    /**
-     * Test if a given URL is a page of search results.
-     * <p>
-     * Search results pages will be shown in the embedded view.  Other pages are
-     * opened in external browsers.
-     *
-     * @param url to test.
-     * @return true if <code>url</code> is a page of search results.
-     */
-    protected boolean isSearchResultsPage(String url) {
-        return url.contains(Constants.YAHOO_WEB_SEARCH_RESULTS_FILTER);
-    }
-
     public void startSearch(String query) {
-        setUrl(Constants.YAHOO_WEB_SEARCH_BASE_URL + Uri.encode(query));
+        if (searchEngine != null) {
+            setUrl(searchEngine.resultsUriForQuery(query));
+        } else {
+            Log.e(LOG_TAG, "Unable to start search. Default search engine not initialized yet.");
+        }
+
     }
 
     private void setUrl(String url) {
@@ -86,6 +80,10 @@ public class PostSearchFragment extends Fragment {
         }
     }
 
+    public void setSearchEngine(SearchEngine searchEngine) {
+        this.searchEngine = searchEngine;
+    }
+
     /**
      * A custom WebViewClient that intercepts every page load. This allows
      * us to decide whether to load the url here, or send it to Android
@@ -95,9 +93,7 @@ public class PostSearchFragment extends Fragment {
 
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
-            if (isSearchResultsPage(url)) {
-                super.onPageStarted(view, url, favicon);
-            } else {
+            if (searchEngine.isExitUrl(url)) {
                 Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL,
                         TelemetryContract.Method.CONTENT, "search-result");
                 view.stopLoading();
@@ -105,6 +101,8 @@ public class PostSearchFragment extends Fragment {
                 i.setClassName(AppConstants.ANDROID_PACKAGE_NAME, AppConstants.BROWSER_INTENT_CLASS_NAME);
                 i.setData(Uri.parse(url));
                 startActivity(i);
+            } else {
+                super.onPageStarted(view, url, favicon);
             }
         }
     }
@@ -122,7 +120,7 @@ public class PostSearchFragment extends Fragment {
         @Override
         public void onReceivedTitle(WebView view, String title) {
             super.onReceivedTitle(view, title);
-            view.loadUrl(HIDE_BANNER_SCRIPT);
+            view.loadUrl(searchEngine.getInjectableJs());
         }
 
         @Override

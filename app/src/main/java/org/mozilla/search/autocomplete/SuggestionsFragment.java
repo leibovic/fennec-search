@@ -8,12 +8,14 @@ import android.app.Activity;
 import android.content.Context;
 import android.graphics.Rect;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.AsyncTaskLoader;
 import android.support.v4.content.Loader;
 import android.text.SpannableString;
 import android.text.style.ForegroundColorSpan;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -26,16 +28,17 @@ import org.mozilla.search.AcceptsSearchQuery;
 import org.mozilla.search.AcceptsSearchQuery.SuggestionAnimation;
 import org.mozilla.search.Constants;
 import org.mozilla.search.R;
+import org.mozilla.search.providers.SearchEngine;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * A fragment to show search suggestions.
- * <p/>
- * TODO: Add more search providers (other than the dictionary)
  */
 public class SuggestionsFragment extends Fragment {
+
+    private static final String LOG_TAG = "SearchFragment";
 
     private static final int LOADER_ID_SUGGESTION = 0;
     private static final String KEY_SEARCH_TERM = "search_term";
@@ -47,6 +50,9 @@ public class SuggestionsFragment extends Fragment {
     private static final int SUGGESTION_HIGHLIGHT_COLOR = 0xFF999999;
 
     private AcceptsSearchQuery searchListener;
+
+    // Suggest client gets setup outside of the normal fragment lifecycle, therefore
+    // clients should ensure that this isn't null before using it.
     private SuggestClient suggestClient;
     private SuggestionLoaderCallbacks suggestionLoaderCallbacks;
 
@@ -68,11 +74,6 @@ public class SuggestionsFragment extends Fragment {
             throw new ClassCastException(activity.toString() + " must implement AcceptsSearchQuery.");
         }
 
-        // TODO: Don't hard-code this template string (bug 1039758)
-        final String template = "https://search.yahoo.com/sugg/ff?" +
-                "output=fxjson&appid=ffm&command=__searchTerms__&nresults=" + Constants.SUGGESTION_MAX;
-
-        suggestClient = new SuggestClient(activity, template, SUGGESTION_TIMEOUT, Constants.SUGGESTION_MAX);
         suggestionLoaderCallbacks = new SuggestionLoaderCallbacks();
 
         autoCompleteAdapter = new AutoCompleteAdapter(activity);
@@ -135,6 +136,11 @@ public class SuggestionsFragment extends Fragment {
         getLoaderManager().restartLoader(LOADER_ID_SUGGESTION, args, suggestionLoaderCallbacks);
     }
 
+    public void setSearchEngine(SearchEngine defaultEngine) {
+        suggestClient = new SuggestClient(getActivity(), defaultEngine.getSuggestionTemplate(),
+                SUGGESTION_TIMEOUT, Constants.SUGGESTION_MAX);
+    }
+
     public static class Suggestion {
 
         private static final ForegroundColorSpan COLOR_SPAN =
@@ -159,7 +165,12 @@ public class SuggestionsFragment extends Fragment {
     private class SuggestionLoaderCallbacks implements LoaderManager.LoaderCallbacks<List<Suggestion>> {
         @Override
         public Loader<List<Suggestion>> onCreateLoader(int id, Bundle args) {
-            return new SuggestionAsyncLoader(getActivity(), suggestClient, args.getString(KEY_SEARCH_TERM));
+            if (suggestClient != null) {
+                return new SuggestionAsyncLoader(getActivity(), suggestClient, args.getString(KEY_SEARCH_TERM));
+            } else {
+                Log.e(LOG_TAG, "Autocomplete setup failed; suggestClient not ready yet.");
+                return null;
+            }
         }
 
         @Override

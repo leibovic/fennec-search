@@ -24,6 +24,8 @@ import org.mozilla.gecko.TelemetryContract;
 import org.mozilla.gecko.db.BrowserContract.SearchHistory;
 import org.mozilla.search.autocomplete.ClearableEditText;
 import org.mozilla.search.autocomplete.SuggestionsFragment;
+import org.mozilla.search.providers.SearchEngine;
+import org.mozilla.search.providers.SearchEngineManager;
 
 /**
  * The main entrance for the Android search intent.
@@ -31,7 +33,10 @@ import org.mozilla.search.autocomplete.SuggestionsFragment;
  * State management is delegated to child fragments. Fragments communicate
  * with each other by passing messages through this activity.
  */
-public class MainActivity extends FragmentActivity implements AcceptsSearchQuery {
+public class MainActivity extends FragmentActivity implements AcceptsSearchQuery,
+        SearchEngineManager.SearchEngineChangeListener {
+
+    private static final String LOG_TAG = "MainActivity";
 
     static enum SearchState {
         PRESEARCH,
@@ -71,12 +76,18 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
     // Vertical translation of suggestion animation text to align with the search bar.
     private int textEndY;
 
+    private SearchEngineManager searchEngineManager;
+
     @Override
     protected void onCreate(Bundle stateBundle) {
         super.onCreate(stateBundle);
         setContentView(R.layout.search_activity_main);
 
-        queryHandler = new AsyncQueryHandler(getContentResolver()) {};
+        // Load the user's default search engine.
+        searchEngineManager = new SearchEngineManager(getApplicationContext(), this);
+
+        queryHandler = new AsyncQueryHandler(getContentResolver()) {
+        };
 
         editText = (ClearableEditText) findViewById(R.id.search_edit_text);
         editText.setOnClickListener(new View.OnClickListener() {
@@ -130,6 +141,9 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
     @Override
     protected void onDestroy() {
         super.onDestroy();
+
+        searchEngineManager = null;
+
         queryHandler = null;
         editText = null;
         preSearch = null;
@@ -162,7 +176,7 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
 
     @Override
     public void onSuggest(String query) {
-       editText.setText(query);
+        editText.setText(query);
     }
 
     @Override
@@ -190,8 +204,8 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
     /**
      * Animates search suggestion to search bar. This animation has 2 main parts:
      *
-     *   1) Vertically translate query text from suggestion card to search bar.
-     *   2) Expand suggestion card to fill the results view area.
+     * 1) Vertically translate query text from suggestion card to search bar.
+     * 2) Expand suggestion card to fill the results view area.
      *
      * @param query
      * @param suggestionAnimation
@@ -297,5 +311,11 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
         // Setting 0 for the token, since we only have one type of insert.
         // Setting null for the cookie, since we don't handle the result of the insert.
         queryHandler.startInsert(0, null, SearchHistory.CONTENT_URI, cv);
+    }
+
+    @Override
+    public void onSearchEngineChange(SearchEngine engine) {
+        ((SuggestionsFragment) getSupportFragmentManager().findFragmentById(R.id.suggestions)).setSearchEngine(engine);
+        ((PostSearchFragment) getSupportFragmentManager().findFragmentById(R.id.postsearch)).setSearchEngine(engine);
     }
 }

@@ -6,11 +6,15 @@ package org.mozilla.search;
 
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
+import android.preference.PreferenceManager;
+import android.text.TextUtils;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -28,11 +32,13 @@ import org.mozilla.gecko.db.BrowserContract;
  *
  * TODO: Change this to PreferenceFragment when we stop supporting devices older than SDK 11.
  */
-public class SearchPreferenceActivity extends PreferenceActivity {
+public class SearchPreferenceActivity extends PreferenceActivity
+        implements SharedPreferences.OnSharedPreferenceChangeListener {
 
-    private static final String LOGTAG = "SearchPreferenceActivity";
+    private static final String LOG_TAG = "SearchPreferenceActivity";
 
-    private static final String CLEAR_SEARCH_HISTORY_BUTTON_KEY = "clear_search_history_button";
+    public static final String PREF_CLEAR_HISTORY_KEY = "SearchPreferenceActivity.PREF_CLEAR_HISTORY_KEY";
+    public static final String PREF_SEARCH_ENGINE_KEY = "SearchPreferenceActivity.PREF_SEARCH_ENGINE_KEY";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +51,18 @@ public class SearchPreferenceActivity extends PreferenceActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(this);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        PreferenceManager.getDefaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(this);
+    }
+
+    @Override
     protected void onPostCreate(Bundle savedInstanceState) {
         super.onPostCreate(savedInstanceState);
         setupPrefsScreen();
@@ -54,7 +72,8 @@ public class SearchPreferenceActivity extends PreferenceActivity {
     private void setupPrefsScreen() {
         addPreferencesFromResource(R.xml.search_preferences);
 
-        final Preference clearHistoryButton = findPreference(CLEAR_SEARCH_HISTORY_BUTTON_KEY);
+        // Attach click listener to clear history button.
+        final Preference clearHistoryButton = findPreference(PREF_CLEAR_HISTORY_KEY);
         clearHistoryButton.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
             @Override
             public boolean onPreferenceClick(Preference preference) {
@@ -67,11 +86,15 @@ public class SearchPreferenceActivity extends PreferenceActivity {
                         clearHistory();
                     }
                 });
-                dialogBuilder.setMessage(R.string.search_pref_clear_history_dialog_message);
+                dialogBuilder.setMessage(R.string.pref_clearHistory_dialogMessage);
                 dialogBuilder.show();
                 return false;
             }
         });
+
+        // Set summary for search engine picker.
+        final ListPreference searchEnginePref = (ListPreference) findPreference(PREF_SEARCH_ENGINE_KEY);
+        searchEnginePref.setSummary(searchEnginePref.getEntry());
     }
 
     private void clearHistory() {
@@ -88,12 +111,20 @@ public class SearchPreferenceActivity extends PreferenceActivity {
                 if (success) {
                     getContentResolver().notifyChange(BrowserContract.SearchHistory.CONTENT_URI, null);
                     Toast.makeText(SearchPreferenceActivity.this, SearchPreferenceActivity.this.getResources()
-                            .getString(R.string.search_pref_clear_history_confirmation), Toast.LENGTH_SHORT).show();
+                            .getString(R.string.pref_clearHistory_confirmation), Toast.LENGTH_SHORT).show();
                 } else {
-                    Log.e(LOGTAG, "Error clearing search history.");
+                    Log.e(LOG_TAG, "Error clearing search history.");
                 }
             }
         };
         clearHistoryTask.execute();
+    }
+
+    @Override
+    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+        if (TextUtils.equals(PREF_SEARCH_ENGINE_KEY, key)) {
+            final ListPreference searchEnginePref = (ListPreference) findPreference(PREF_SEARCH_ENGINE_KEY);
+            searchEnginePref.setSummary(searchEnginePref.getEntry());
+        }
     }
 }
