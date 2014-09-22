@@ -195,14 +195,6 @@ public class SearchEngine {
         return iconURL;
     }
 
-    public int getColor() {
-        // TOOD: Add brand colors to search plugin XML.
-        if (identifier.equals("yahoo")) {
-            return 0xFF500095;
-        }
-        return Color.TRANSPARENT;
-    }
-
     /**
      * Determine whether a particular url belongs to this search engine. If not,
      * the url will be sent to Fennec.

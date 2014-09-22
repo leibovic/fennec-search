@@ -5,7 +5,7 @@
 package org.mozilla.search.autocomplete;
 
 import android.content.Context;
-import android.graphics.Color;
+import android.graphics.Bitmap;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.BitmapDrawable;
@@ -127,18 +127,15 @@ public class SearchBar extends FrameLayout {
     }
 
     public void setEngine(SearchEngine engine) {
-        int color = engine.getColor();
-        if (color == Color.TRANSPARENT) {
-            // Fall back to default orange if the search engine doesn't specify a color.
-            color = getResources().getColor(R.color.highlight_orange);
-        }
-        // Update the focused background color.
-        focusedBackground.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY));
-
         final String iconURL = engine.getIconURL();
-        final BitmapDrawable d = new BitmapDrawable(getResources(), BitmapUtils.getBitmapFromDataURI(iconURL));
+        final Bitmap bitmap = BitmapUtils.getBitmapFromDataURI(iconURL);
+        final BitmapDrawable d = new BitmapDrawable(getResources(), bitmap);
         engineIcon.setImageDrawable(d);
         engineIcon.setContentDescription(engine.getName());
+
+        // Update the focused background color.
+        final int color = BitmapUtils.getDominantColor(bitmap);
+        focusedBackground.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY));
 
         editText.setHint(getResources().getString(R.string.search_bar_hint, engine.getName()));
     }
